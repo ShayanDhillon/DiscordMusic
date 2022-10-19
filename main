@@ -1,0 +1,77 @@
+import al
+import discord
+import urllib.parse
+
+from urllib.parse import urlencode
+import parse
+import re
+from pytube import YouTube  # pip install --upgrade pytube
+import os
+from os import system
+
+TOKEN = '' # Put your discord bot's token here
+
+client = discord.Client()
+
+# searches youtube, and plays the top result of your search
+async def youtube(message, search):
+    query_string = urllib.parse.urlencode({'search_query': search})
+    html_content = urllib.request.urlopen('http://www.youtube.com/results?' +
+                                          query_string)
+    search_content = html_content.read().decode()
+
+    search_results = re.findall(r'\/watch\?v=\w+', search_content)
+    url = 'https://www.youtube.com' + search_results[0]
+
+    await message.channel.send(url)
+    voice = message.guild.voice_client
+
+    yt = YouTube(url)
+    video = yt.streams.filter(only_audio=True).first()
+    out_file = video.download(output_path=".")
+
+    base, ext = os.path.splitext(out_file)
+    new_file = base + '.mp3'
+    #os.rename(out_file, new_file)
+    os.rename(out_file, "playing.mp3")
+
+    #voice.play(discord.FFmpegPCMAudio(base.__add__('.mp3')),
+    #after=lambda e: print('done', e))
+    voice.play(discord.FFmpegPCMAudio("playing".__add__('.mp3')),
+               after=lambda e: print('done', e))
+
+
+
+
+@client.event
+async def on_ready():
+    print('We have logged in as {0.user}'.format(client))
+
+
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
+
+    if message.content.startswith('-act'):
+        await client.change_presence(activity=discord.Game(
+            name=message.content.split('-act ')[1]))
+        return
+    if message.content.startswith('-join') or message.content.startswith('-j'):
+        channel = message.author.voice.channel
+        await channel.connect()
+    if message.content.startswith('-die') or message.content.startswith(
+            '-leave'):
+        await message.guild.voice_client.disconnect()
+    if message.content.startswith('-play'):
+        await message.channel.send('now playing:')
+        await youtube(message, message.content.split('-play ')[1])
+        return
+    if message.content.startswith('-stop'):
+        voice = message.guild.voice_client
+        voice.pause()
+
+
+al.keep_alive()
+
+client.run(TOKEN)
